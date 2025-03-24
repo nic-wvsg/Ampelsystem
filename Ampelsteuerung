@@ -1,0 +1,81 @@
+import time
+import RPi.GPIO as GPIO
+
+GPIO.cleanup()
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(0,GPIO.OUT)
+GPIO.setup(5,GPIO.OUT)
+GPIO.setup(6,GPIO.OUT)
+
+
+geschwindigkeitszone = int(input("Zulässige Höchstgeschwindigkeit der Straße (in Kilometer pro Stunde): "))
+
+if geschwindigkeitszone <= 30:
+    y1 = 10
+elif geschwindigkeitszone <= 50:
+    y1 = 15
+else:
+    y1 = 20
+
+if geschwindigkeitszone <= 50:
+    y2 = 3
+elif geschwindigkeitszone <= 60:
+    y2 = 4
+else:
+    y2 = 5
+
+z = 0
+GPIO.output(5, GPIO.HIGH) #Gelb aus
+GPIO.output(6,GPIO.LOW) # Rot an
+GPIO.output(0,GPIO.HIGH) # Grün aus
+
+while True:
+   
+    try:
+        with open("verkehrsdaten.txt", "r") as f:
+            data = f.read().strip()
+            anzahl_autos, bus_erkannt = map(int, data.split(","))
+    except FileNotFoundError:
+        anzahl_autos, bus_erkannt = 0, 0  
+
+    if bus_erkannt:
+        print("Bus erkannt! Ampel schaltet sofort auf Grün.")
+        time.sleep(1)
+        GPIO.output(5,GPIO.LOW)#Gelb-Rot Übergang
+        time.sleep(2)
+        GPIO.output(0,GPIO.LOW) # Grün an
+        GPIO.output(5,GPIO.HIGH)# Gelb aus
+        GPIO.output(6,GPIO.HIGH)# Rot aus
+        time.sleep(1)  
+        continue
+
+    if GPIO.input(6) == GPIO.LOW:
+        x = min(anzahl_autos // 2, 3)  
+        z += x 
+
+        if z > 1:
+            print(f"Ampel schaltet auf GRÜN für {y1 + (anzahl_autos // 2)} Sekunden")
+            time.sleep(1)           # Übergang von Rot zu Grün
+            GPIO.output(5,GPIO.LOW) # Gelb an
+            GPIO.output(6,GPIO.LOW) # Rpt an
+            time.sleep(2)
+            GPIO.output(0,GPIO.LOW) # Grün an
+            GPIO.output(5,GPIO.HIGH)# Gelb aus
+            GPIO.output(6,GPIO.HIGH)# Rot aus
+            time.sleep(y1 + (anzahl_autos // 2)) # Für festgelegte Zeit + nach Verkehrsaufkommen
+            print(f"Ampel auf GELB für {y2} Sekunden") 
+            GPIO.output(0,GPIO.HIGH)
+            GPIO.output(5,GPIO.LOW) 
+            time.sleep(y2) 
+            print("Ampel auf ROT")
+            GPIO.output(5,GPIO.HIGH)
+            GPIO.output(6,GPIO.LOW)
+            z = 0  #Warteschlange zurücksetzten
+        else:
+            GPIO.output(6,GPIO.LOW) # Ampel bleibt rot
+            GPIO.output(5,GPIO.HIGH)
+            GPIO.output(0,GPIO.HIGH)
+
+    time.sleep(1) 
+
+    
