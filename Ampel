@@ -1,0 +1,59 @@
+import time
+import RPi.GPIO as GPIO
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(0, GPIO.OUT)
+GPIO.setup(5, GPIO.OUT)
+GPIO.setup(6, GPIO.OUT)
+
+geschwindigkeitszone = int(input("Zulässige Höchstgeschwindigkeit der Straße (in km/h): ")) 
+y1 = 10 if geschwindigkeitszone <= 30 else 15 if geschwindigkeitszone <= 50 else 20
+y2 = 3 if geschwindigkeitszone <= 50 else 4 if geschwindigkeitszone <= 60 else 5
+
+z = 0
+GPIO.output(5, GPIO.HIGH)  # Gelb aus
+GPIO.output(6, GPIO.LOW)   # Rot an
+GPIO.output(0, GPIO.HIGH)  # Grün aus
+
+while True:
+    try:
+        with open("verkehrsdaten.txt", "r") as f:
+            data = f.read().strip()
+            anzahl_autos, bus_erkannt = map(int, data.split(","))
+    except FileNotFoundError:
+        anzahl_autos, bus_erkannt = 0, 0  
+
+    if bus_erkannt:
+        print("Bus erkannt! Ampel schaltet sofort auf Grün.")
+        time.sleep(1)
+        GPIO.output(5, GPIO.LOW)  # Gelb-Rot Übergang
+        time.sleep(2)
+        GPIO.output(0, GPIO.LOW)  # Grün an
+        GPIO.output(5, GPIO.HIGH) # Gelb aus
+        GPIO.output(6, GPIO.HIGH) # Rot aus
+        time.sleep(5)  # 5 Sekunden Grün für den Bus
+        continue
+
+    if GPIO.input(6) == GPIO.LOW:  # Ampel ist rot
+        x = min(anzahl_autos // 2, 3)  
+        z += x
+
+        if z > 1:
+            print("Zu viele Autos! Ampel schaltet auf Grün.")
+            time.sleep(1)
+            GPIO.output(5, GPIO.LOW)  # Gelb an
+            time.sleep(2)
+            GPIO.output(0, GPIO.LOW)  # Grün an
+            GPIO.output(5, GPIO.HIGH) # Gelb aus
+            GPIO.output(6, GPIO.HIGH) # Rot aus
+            time.sleep(y1 + (anzahl_autos // 2))  # Grünzeit basierend auf Autos
+            GPIO.output(0, GPIO.HIGH)  # Grün aus
+            GPIO.output(5, GPIO.LOW)   # Gelb an
+            time.sleep(y2)  
+            GPIO.output(5, GPIO.HIGH)  # Gelb aus
+            GPIO.output(6, GPIO.LOW)   # Rot an
+            z = 0  # Zurücksetzen
+        else:
+            print("Nicht genug Autos. Ampel bleibt rot.")
+    
+    time.sleep(1)
